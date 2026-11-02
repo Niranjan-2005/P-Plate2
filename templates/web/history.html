@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Inspection history{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Inspection history</h1>
+    <p class="muted">{{ total_records }} record(s) across all batches.</p>
+  </div>
+  <div class="page-actions">
+    {% if is_engineer %}<a class="btn btn-primary" href="{% url 'web:upload' %}">+ New batch</a>{% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <form class="filterbar" method="get">
+    <div class="search">
+      {% include "web/_icon.html" with name='search' %}
+      <input type="text" name="q" value="{{ search }}" placeholder="Search file name or product…">
+    </div>
+    <select name="status">
+      <option value="">All statuses</option>
+      {% for val, lab in statuses %}
+      <option value="{{ val }}" {% if val == status_filter %}selected{% endif %}>{{ lab }}</option>
+      {% endfor %}
+    </select>
+    <select name="label">
+      <option value="">All results</option>
+      {% for val, lab in labels %}
+      <option value="{{ val }}" {% if val == label_filter %}selected{% endif %}>{{ lab }}</option>
+      {% endfor %}
+    </select>
+    <select name="review">
+      {% for val, lab in review_filters %}
+      <option value="{{ val }}" {% if val == review_filter %}selected{% endif %}>{{ lab }}</option>
+      {% endfor %}
+    </select>
+    <select name="order">
+      <option value="-created_at" {% if ordering == '-created_at' %}selected{% endif %}>Newest first</option>
+      <option value="created_at" {% if ordering == 'created_at' %}selected{% endif %}>Oldest first</option>
+      <option value="-confidence" {% if ordering == '-confidence' %}selected{% endif %}>Confidence ↓</option>
+      <option value="confidence" {% if ordering == 'confidence' %}selected{% endif %}>Confidence ↑</option>
+    </select>
+    <button class="btn btn-ghost" type="submit">Apply</button>
+    <a class="btn btn-ghost" href="{% url 'web:history' %}">Reset</a>
+  </form>
+
+  <table class="table">
+    <thead><tr>
+      <th>Record</th><th>File</th><th>Product</th><th>Status</th><th>Result</th>
+      <th>Conf.</th><th>Submitted by</th><th>Created</th><th></th>
+    </tr></thead>
+    <tbody>
+    {% for r in page_obj %}
+      <tr>
+        <td><strong>#{{ r.id }}</strong></td>
+        <td class="truncate" title="{{ r.original_filename }}">{{ r.original_filename }}</td>
+        <td>{{ r.batch.product.product_id }}</td>
+        <td>{% include "web/_status.html" with s=r.status %}</td>
+        <td>{% include "web/_label.html" with l=r.effective_class %}</td>
+        <td>{{ r.confidence|floatformat:2|default:"—" }}</td>
+        <td>{{ r.submitted_by.username }}</td>
+        <td class="muted">{{ r.created_at|date:"d M Y H:i" }}</td>
+        <td>
+          <a class="link" href="{% url 'web:results' r.batch_id %}">Batch ›</a>
+          {% if is_supervisor and r.status == 'completed' %}· <a class="link" href="{% url 'web:review' %}?record={{ r.id }}">{% if r.is_reviewed %}Amend{% else %}Review{% endif %}</a>{% endif %}
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="9" class="muted center">No records match these filters.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  {% if page_obj.paginator.num_pages > 1 %}
+  <div class="pager">
+    <span class="muted">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+    <div class="pager-btns">
+      {% if page_obj.has_previous %}
+      <a class="btn btn-ghost btn-sm" href="?q={{ search|urlencode }}&status={{ status_filter }}&label={{ label_filter }}&review={{ review_filter }}&order={{ ordering }}&page={{ page_obj.previous_page_number }}">‹ Prev</a>
+      {% endif %}
+      {% if page_obj.has_next %}
+      <a class="btn btn-ghost btn-sm" href="?q={{ search|urlencode }}&status={{ status_filter }}&label={{ label_filter }}&review={{ review_filter }}&order={{ ordering }}&page={{ page_obj.next_page_number }}">Next ›</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

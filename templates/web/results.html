@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Batch #{{ batch.id }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Inspection results</h1>
+    <p class="muted">Batch #{{ batch.id }} · {{ batch.product.product_id }} · submitted by {{ batch.submitted_by.username }}</p>
+  </div>
+  <div class="page-actions">
+    {% include "web/_status.html" with s=batch.status %}
+    <a class="btn btn-ghost" href="{% url 'web:history' %}">History</a>
+    {% if is_engineer %}<a class="btn btn-primary" href="{% url 'web:upload' %}">New batch</a>{% endif %}
+  </div>
+</div>
+
+<div class="summary-strip">
+  <div class="sum"><span>{{ counts.total }}</span><small>Total</small></div>
+  <div class="sum ok"><span>{{ counts.completed }}</span><small>Completed</small></div>
+  <div class="sum warn"><span>{{ counts.queued|add:counts.processing }}</span><small>In queue</small></div>
+  <div class="sum bad"><span>{{ counts.defective }}</span><small>Defective</small></div>
+  <div class="sum err"><span>{{ counts.failed }}</span><small>Failed</small></div>
+</div>
+
+{% if counts.queued or counts.processing %}
+<div class="alert alert-info" id="pollBanner" data-batch="{{ batch.pk }}">
+  ◐ Some records are still processing. This page refreshes automatically.
+</div>
+{% endif %}
+
+<div class="grid-2 viewer-grid">
+  <div class="card">
+    <div class="viewer">
+      <div class="viewer-stage" id="viewerStage">
+        <img id="viewerImg" src="" alt="No image" draggable="false">
+        <div class="annot" id="annot"><span class="annot-label"></span></div>
+      </div>
+      <div class="viewer-bar">
+        <button class="icon-btn" id="zoomOut">−</button>
+        <button class="icon-btn" id="zoomReset">Fit</button>
+        <button class="icon-btn" id="zoomIn">+</button>
+        <span class="muted" id="viewerName">Select a thumbnail</span>
+      </div>
+    </div>
+    <div class="thumbs" id="thumbs">
+      {% for img in images %}
+      <button class="thumb" data-url="{{ img.url }}" data-name="{{ img.name }}"
+              data-label="{{ img.label }}" data-conf="{{ img.confidence }}">
+        <img src="{{ img.url }}" alt="{{ img.name }}">
+        <span class="thumb-tag {{ img.label|lower }}">{{ img.label }}</span>
+      </button>
+      {% empty %}
+      <p class="muted center">No viewable images in this batch yet.</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>AI prediction</h2></div>
+    <div class="pred" id="predPanel">
+      <div class="pred-label" id="predLabel">—</div>
+      <div class="pred-conf" id="predConf">Select an image</div>
+    </div>
+    <div class="info-rows">
+      <div><span>Model version</span><strong>{{ model_version }}</strong></div>
+      <div><span>Decision threshold</span><strong>0.5</strong></div>
+      <div><span>Batch status</span><strong>{{ batch.get_status_display }}</strong></div>
+      <div><span>Created</span><strong>{{ batch.created_at|date:"d M Y H:i" }}</strong></div>
+    </div>
+
+    <div class="card-head"><h2>Records</h2></div>
+    <table class="table table-sm">
+      <thead><tr><th>File</th><th>Status</th><th>Result</th><th>Conf.</th><th></th></tr></thead>
+      <tbody>
+      {% for r in records %}
+        <tr>
+          <td class="truncate" title="{{ r.original_filename }}">{{ r.original_filename }}</td>
+          <td>{% include "web/_status.html" with s=r.status %}</td>
+          <td>{% include "web/_label.html" with l=r.effective_class %}</td>
+          <td>{{ r.confidence|floatformat:2|default:"—" }}</td>
+          <td>
+            {% if is_supervisor and r.status == 'completed' %}
+              <a class="link" href="{% url 'web:review' %}?record={{ r.id }}">Review</a>
+            {% elif r.is_reviewed %}
+              <span class="muted">Reviewed</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5" class="muted center">No records.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

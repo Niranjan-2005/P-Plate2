@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Audit log{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Audit log</h1>
+    <p class="muted">{{ total }} review entr(ies). Every submitted supervisor decision is kept, including amendments. Original model outputs are never modified.</p>
+  </div>
+  {% if selected_record %}
+  <div class="page-actions"><a class="btn btn-ghost" href="{% url 'web:audit' %}">Show all entries</a></div>
+  {% endif %}
+</div>
+
+<div class="card">
+  <table class="table">
+    <thead><tr>
+      <th>Entry</th><th>Record</th><th>File</th><th>Model said</th>
+      <th>Previous</th><th>Reviewed as</th><th>Reviewer</th><th>Comment</th><th>When</th>
+    </tr></thead>
+    <tbody>
+    {% for e in page_obj %}
+      <tr>
+        <td><strong>#{{ e.id }}</strong></td>
+        <td><a class="link" href="{% url 'web:audit' %}?record={{ e.record_id }}">{{ e.record_id }}</a></td>
+        <td class="truncate" title="{{ e.record.original_filename }}">{{ e.record.original_filename }}</td>
+        <td>{% include "web/_label.html" with l=e.record.predicted_class %}</td>
+        <td>{{ e.previous_class|default:"—" }}</td>
+        <td>{% include "web/_label.html" with l=e.reviewed_class %}
+          {% if e.previous_class and e.previous_class != e.reviewed_class %}<span class="changed">amended</span>
+          {% elif not e.previous_class and e.record.predicted_class != e.reviewed_class %}<span class="changed">changed</span>{% endif %}
+        </td>
+        <td>{{ e.reviewer.username }}</td>
+        <td class="muted">{{ e.comment|default:"—" }}</td>
+        <td class="muted">{{ e.created_at|date:"d M Y H:i" }}<br><small>{{ e.get_source_display }}</small></td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="9" class="muted center">No reviews recorded yet.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  {% if page_obj.paginator.num_pages > 1 %}
+  <div class="pager">
+    <span class="muted">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+    <div class="pager-btns">
+      {% if page_obj.has_previous %}<a class="btn btn-ghost btn-sm" href="?page={{ page_obj.previous_page_number }}">‹ Prev</a>{% endif %}
+      {% if page_obj.has_next %}<a class="btn btn-ghost btn-sm" href="?page={{ page_obj.next_page_number }}">Next ›</a>{% endif %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

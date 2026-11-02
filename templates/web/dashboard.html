@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Quality analytics</h1>
+    <p class="muted">{{ scope_note|default:"Production quality and model performance." }}</p>
+  </div>
+  <div class="page-actions">
+    <span class="chip">{{ today }}</span>
+    {% if is_engineer or is_supervisor %}<a class="btn btn-ghost" href="{% url 'web:history' %}">View all records</a>{% endif %}
+    {% if is_engineer %}<a class="btn btn-primary" href="{% url 'web:upload' %}">+ New batch</a>{% endif %}
+  </div>
+</div>
+
+<div class="kpi-grid">
+  <div class="kpi">
+    <span class="kpi-label">Total inspections</span>
+    <span class="kpi-value">{{ total_completed }}</span>
+    <span class="kpi-sub muted">{{ pending }} in queue · {{ failed }} failed</span>
+  </div>
+  <div class="kpi">
+    <span class="kpi-label">Defect rate</span>
+    <span class="kpi-value danger">{{ defect_rate|floatformat:1 }}%</span>
+    <span class="kpi-sub muted">{{ defective }} of {{ total_completed }} flagged</span>
+  </div>
+  <div class="kpi">
+    <span class="kpi-label">Review agreement</span>
+    <span class="kpi-value ok">{{ agreement|floatformat:1 }}%</span>
+    <span class="kpi-sub muted">{{ reviewed_count }} supervisor reviews</span>
+  </div>
+  <div class="kpi">
+    <span class="kpi-label">Avg confidence</span>
+    <span class="kpi-value">{{ avg_confidence|floatformat:1 }}%</span>
+    <span class="kpi-sub muted">model {{ model_version }}</span>
+  </div>
+</div>
+
+<div class="grid-2">
+  <div class="card">
+    <div class="card-head">
+      <h2>Daily inspection volume</h2>
+      <span class="legend"><i class="sw sw-green"></i> Normal <i class="sw sw-red"></i> Defective</span>
+    </div>
+    <div class="chart" id="volumeChart"
+         data-days="{{ chart_days }}" data-normal="{{ chart_normal }}" data-defect="{{ chart_defect }}"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>AI classification mix</h2></div>
+    <div class="donut-wrap">
+      <div class="chart donut" id="mixChart"
+           data-normal="{{ chart_mix_normal }}" data-defective="{{ chart_mix_defective }}"></div>
+      <div class="donut-legend">
+        <div><i class="sw sw-green"></i> Normal <strong>{{ chart_mix_normal }}</strong></div>
+        <div><i class="sw sw-red"></i> Defective <strong>{{ chart_mix_defective }}</strong></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>Recent batches</h2>
+    <a class="btn btn-ghost btn-sm" href="{% url 'web:history' %}">History</a>
+  </div>
+  <table class="table">
+    <thead><tr><th>Batch</th><th>Product</th><th>Submitted by</th><th>Status</th><th>Records</th><th>Created</th><th></th></tr></thead>
+    <tbody>
+    {% for b in recent_batches %}
+      <tr>
+        <td><strong>#{{ b.id }}</strong></td>
+        <td>{{ b.product.product_id }}</td>
+        <td>{{ b.submitted_by.username }}</td>
+        <td>{% include "web/_status.html" with s=b.status %}</td>
+        <td>{{ b.records.count }}</td>
+        <td class="muted">{{ b.created_at|date:"d M Y H:i" }}</td>
+        <td><a class="link" href="{% url 'web:results' b.pk %}">Open ›</a></td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="7" class="muted center">No batches yet. {% if is_engineer %}<a class="link" href="{% url 'web:upload' %}">Create one</a>.{% endif %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

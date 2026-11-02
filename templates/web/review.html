@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Supervisor review{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Supervisor review</h1>
+    <p class="muted">{{ pending_count }} completed record(s) awaiting review, {{ reviewed_count }} already decided. Model outputs stay immutable; every review you submit is kept as a separate audit entry.</p>
+  </div>
+</div>
+
+{% if not can_review %}
+<div class="alert alert-info">You are viewing in read-only mode. Only supervisor accounts can submit corrections.</div>
+{% endif %}
+
+<div class="review-grid">
+  <div class="card queue">
+    <div class="card-head"><h2>Review queue</h2></div>
+    <div class="queue-list">
+      {% for r in queue %}
+      <a class="queue-item {% if selected and r.id == selected.id %}active{% endif %}"
+         href="?record={{ r.id }}">
+        <span class="qi-main">
+          <strong>#{{ r.id }}</strong> {{ r.original_filename }}
+        </span>
+        <span class="qi-sub muted">{{ r.batch.product.product_id }} · {{ r.created_at|date:"d M H:i" }}</span>
+      </a>
+      {% empty %}
+      <p class="muted center">Queue is empty — all completed records reviewed.</p>
+      {% endfor %}
+    </div>
+    {% if reviewed_count %}
+    <div class="card-head"><h2>Already reviewed <span class="muted">({{ reviewed_count }})</span></h2></div>
+    <div class="queue-list">
+      {% for r in reviewed_recent %}
+      <a class="queue-item {% if selected and r.id == selected.id %}active{% endif %}"
+         href="?record={{ r.id }}">
+        <span class="qi-main">
+          <strong>#{{ r.id }}</strong> {{ r.original_filename }}
+        </span>
+        <span class="qi-sub muted">{{ r.get_reviewed_class_display }} by {{ r.reviewer.username }} · {{ r.review_timestamp|date:"d M H:i" }}</span>
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="card detail">
+    {% if selected %}
+    <div class="viewer">
+      <div class="viewer-stage">
+        {% if selected.image %}
+        <img src="{{ selected.image.url }}" alt="{{ selected.original_filename }}" draggable="false">
+        {% else %}
+        <p class="muted center">No stored image for this record.</p>
+        {% endif %}
+        {% if selected.effective_class == 'Defective' %}<div class="annot show"><span class="annot-label">Defective</span></div>{% endif %}
+      </div>
+    </div>
+
+    <div class="pred-row">
+      <div class="pred-box">
+        <span class="muted">Model output</span>
+        {% include "web/_label.html" with l=selected.predicted_class %}
+        <small class="muted">conf {{ selected.confidence|floatformat:3|default:"—" }} · p {{ selected.defect_probability|floatformat:3|default:"—" }}</small>
+      </div>
+      <div class="pred-box">
+        <span class="muted">Current label</span>
+        {% include "web/_label.html" with l=selected.effective_class %}
+        {% if selected.is_reviewed %}<small class="muted">by {{ selected.reviewer.username }}</small>{% endif %}
+      </div>
+    </div>
+
+    {% if can_review %}
+    <form method="post" action="{% url 'web:review-submit' selected.pk %}">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{% url 'web:review' %}?record={{ selected.pk }}">
+      <div class="field">
+        <label>Supervisor decision</label>
+        <div class="btn-group">
+          <button class="btn btn-ok" type="submit" name="reviewed_class" value="Normal">{% if selected.is_reviewed %}Amend to Normal{% else %}Confirm as Normal{% endif %}</button>
+          <button class="btn btn-bad" type="submit" name="reviewed_class" value="Defective">{% if selected.is_reviewed %}Amend to Defective{% else %}Mark as Defective{% endif %}</button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="cmt">Comment <span class="muted">(optional)</span></label>
+        <textarea name="review_comment" id="cmt" rows="2" placeholder="e.g. scratch on left edge confirmed">{{ selected.review_comment }}</textarea>
+      </div>
+    </form>
+    {% endif %}
+
+    {% if selected.review_events.all %}
+    <div class="field">
+      <label>Audit trail <span class="muted">(append-only)</span></label>
+      <ul class="file-list">
+        {% for e in selected.review_events.all %}
+        <li>
+          <span>{{ e.created_at|date:"d M Y H:i" }} · {{ e.reviewer.username }}:
+            {% if e.previous_class %}{{ e.previous_class }} → {% else %}— → {% endif %}{{ e.reviewed_class }}
+          </span>
+          <span class="muted">{{ e.comment|default:"no comment" }} · {{ e.get_source_display }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+    {% else %}
+    <p class="muted center">Select a record from the queue to review.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

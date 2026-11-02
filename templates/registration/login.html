@@ -1,0 +1,43 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · P-PLATE2T</title>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body class="auth-body">
+  <div class="auth-card">
+    <div class="auth-brand">
+      <div class="brand-mark">P</div>
+      <div>
+        <strong>P-PLATE2T</strong>
+        <span>AI Visual Quality Inspection</span>
+      </div>
+    </div>
+    <h1>Sign in</h1>
+    <p class="muted">Use your plant account to access the inspection workspace.</p>
+
+    {% if form.errors %}
+      <div class="alert alert-error">Your username and password did not match. Please try again.</div>
+    {% endif %}
+
+    <form method="post" action="{% url 'web:login' %}">
+      {% csrf_token %}
+      <label>Username</label>
+      <input type="text" name="username" autofocus autocomplete="username" required>
+      <label>Password</label>
+      <input type="password" name="password" autocomplete="current-password" required>
+      <input type="hidden" name="next" value="{{ next }}">
+      <button class="btn btn-primary btn-block" type="submit">Sign in</button>
+    </form>
+
+    <div class="auth-hint">
+      <strong>Demo accounts</strong>
+      <code>admin / admin-pass</code>
+      <code>engineer / engineer-pass</code>
+      <code>supervisor / supervisor-pass</code>
+    </div>
+  </div>
+</body>
+</html>

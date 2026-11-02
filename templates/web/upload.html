@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Batch upload{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Batch upload &amp; queue</h1>
+    <p class="muted">Upload plate images and monitor AI inspection in near real time.</p>
+  </div>
+</div>
+
+<div class="grid-2 upload-grid">
+  <form class="card" method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <div class="card-head"><h2>Upload plate images</h2></div>
+
+    <div class="dropzone" id="dropzone">
+      <input type="file" name="images" id="fileInput" accept="image/png,image/jpeg" multiple hidden>
+      <div class="dz-inner">
+        <div class="dz-icon">{% include "web/_icon.html" with name='upload' %}</div>
+        <p><strong>Drag &amp; drop images here</strong></p>
+        <p class="muted">or click to browse files</p>
+        <button type="button" class="btn btn-primary btn-sm" id="browseBtn">Choose images</button>
+      </div>
+    </div>
+    <ul class="file-list" id="fileList"></ul>
+
+    <div class="field">
+      <label for="product">Product line</label>
+      <select name="product_id" id="product">
+        {% for p in products %}
+        <option value="{{ p.product_id }}" {% if p.product_id == default_product %}selected{% endif %}>
+          {{ p.product_id }} — {{ p.name }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="notes">Notes <span class="muted">(optional)</span></label>
+      <input type="text" name="notes" id="notes" maxlength="255" placeholder="Shift, station or batch remark">
+    </div>
+
+    <div class="rules muted">
+      <strong>Validation rules</strong>
+      <ul>
+        <li>Batch size: 1–{{ max_batch }} files</li>
+        <li>Max {{ max_size_mib }} MiB per image · JPEG or PNG only</li>
+        <li>Dimensions {{ min_dim }}–{{ max_dim }} px</li>
+      </ul>
+    </div>
+
+    <button class="btn btn-primary btn-block" type="submit">Start inspection</button>
+  </form>
+
+  <div class="card">
+    <div class="card-head"><h2>Queue guidance</h2></div>
+    <p class="muted">Each accepted image becomes a record and is queued for the frozen classifier
+      (<code>{{ model_version }}</code>). Files that fail validation are stored as failed records and
+      never reach the model.</p>
+    <div class="info-rows">
+      <div><span>Model</span><strong>{{ model_version }}</strong></div>
+      <div><span>Decision threshold</span><strong>0.5</strong></div>
+      <div><span>Your role</span><strong>{{ role_display }}</strong></div>
+    </div>
+    <p class="hint">A Celery worker must be running for inference to complete. Start one with:
+      <code>celery -A config worker -l info --pool=solo</code></p>
+  </div>
+</div>
+{% endblock %}

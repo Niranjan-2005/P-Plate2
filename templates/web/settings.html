@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Settings</h1>
+    <p class="muted">Account, model and product configuration. {{ scope_note }}</p>
+  </div>
+</div>
+
+<div class="grid-2">
+  <div class="card">
+    <div class="card-head"><h2>Account</h2></div>
+    <div class="info-rows">
+      <div><span>Username</span><strong>{{ user.username }}</strong></div>
+      <div><span>Role</span><strong>{{ role_display }}</strong></div>
+      <div><span>Staff</span><strong>{{ user.is_staff }}</strong></div>
+      <div><span>Admin console</span><a class="link" href="/admin/">Open Django admin ›</a></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>Model configuration</h2></div>
+    <div class="info-rows">
+      <div><span>Version</span><strong>{{ metadata.model_version|default:model_version }}</strong></div>
+      <div><span>Architecture</span><strong>{{ metadata.architecture|default:"—" }}</strong></div>
+      <div><span>Decision threshold</span><strong>{{ metadata.decision_threshold|default:"0.5" }}</strong></div>
+      <div><span>Classes</span><strong>Normal · Defective</strong></div>
+    </div>
+    {% if metadata.limitations %}<p class="hint">{{ metadata.limitations }}</p>{% endif %}
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>Product lines</h2>
+      {% if is_admin %}<a class="btn btn-ghost btn-sm" href="/admin/inspection/product/">Manage</a>{% endif %}
+    </div>
+    <table class="table table-sm">
+      <thead><tr><th>Product ID</th><th>Name</th><th>Active</th></tr></thead>
+      <tbody>
+      {% for p in products %}
+        <tr><td><strong>{{ p.product_id }}</strong></td><td>{{ p.name }}</td>
+          <td>{% if p.is_active %}<span class="tag tag-green">Active</span>{% else %}<span class="tag tag-gray">Inactive</span>{% endif %}</td></tr>
+      {% empty %}
+        <tr><td colspan="3" class="muted center">No products. Run <code>python manage.py seed_demo</code>.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>Validation rules</h2></div>
+    <div class="info-rows">
+      <div><span>Batch size</span><strong>1–10 files</strong></div>
+      <div><span>Max image size</span><strong>5 MiB</strong></div>
+      <div><span>Dimensions</span><strong>64–4096 px</strong></div>
+      <div><span>Formats</span><strong>JPEG · PNG</strong></div>
+    </div>
+  </div>
+</div>
+{% endblock %}

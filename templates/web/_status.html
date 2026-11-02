@@ -1,0 +1,6 @@
+{% if s == 'completed' %}<span class="pill pill-green">● Completed</span>
+{% elif s == 'processing' %}<span class="pill pill-blue">◐ Processing</span>
+{% elif s == 'queued' %}<span class="pill pill-amber">◷ Queued</span>
+{% elif s == 'partial' %}<span class="pill pill-amber">◑ Partial</span>
+{% elif s == 'failed' %}<span class="pill pill-red">✕ Failed</span>
+{% else %}<span class="pill pill-gray">{{ s|default:'—' }}</span>{% endif %}
