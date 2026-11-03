@@ -1,11 +1,13 @@
+from io import StringIO
 from unittest.mock import PropertyMock, patch
 
 from django.contrib.auth import get_user_model
+from django.core.management import call_command
 from django.db.models.fields.files import FieldFile
 from django.test import TestCase
 
 from inspection.models import InspectionBatch, InspectionRecord, Product
-from inspection.tasks import process_single_inspection
+from inspection.tasks import enqueue_record, process_single_inspection
 
 PREDICT_OK = {
     "predicted_class": "Normal",
@@ -141,3 +143,74 @@ class ProcessSingleInspectionTests(TestCase):
         record.refresh_from_db()
         self.assertEqual(record.status, InspectionRecord.Status.FAILED)
         self.assertEqual(record.failure_reason, "File is not a valid decoded JPEG or PNG image.")
+
+
+class EnqueueAndRequeueTests(TestCase):
+    """Broker-failure handling and the requeue_stuck recovery command."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user("eng", password="x")
+        self.product = Product.objects.create(product_id="P-PLATE01")
+        self.batch = InspectionBatch.objects.create(
+            product=self.product, submitted_by=self.user
+        )
+
+    def _record(self, name="plate.png"):
+        return InspectionRecord.objects.create(
+            batch=self.batch,
+            submitted_by=self.user,
+            original_filename=name,
+            image="available.png",
+            status=InspectionRecord.Status.QUEUED,
+        )
+
+    def test_enqueue_record_returns_task_id_on_success(self):
+        record = self._record()
+        with patch("inspection.tasks.process_single_inspection.delay") as delay:
+            delay.return_value.id = "abc123"
+            self.assertEqual(enqueue_record(record), "abc123")
+        record.refresh_from_db()
+        self.assertEqual(record.status, InspectionRecord.Status.QUEUED)
+
+    def test_enqueue_record_marks_failed_when_broker_down(self):
+        record = self._record()
+        with patch(
+            "inspection.tasks.process_single_inspection.delay",
+            side_effect=OSError("Connection refused"),
+        ):
+            self.assertIsNone(enqueue_record(record))
+        record.refresh_from_db()
+        self.assertEqual(record.status, InspectionRecord.Status.FAILED)
+        self.assertIn("requeue_stuck", record.failure_reason)
+
+    def test_requeue_stuck_command_redispatches_queued_records(self):
+        self._record("a.png")
+        self._record("b.png")
+        out = StringIO()
+        with patch("inspection.tasks.process_single_inspection.delay") as delay:
+            delay.return_value.id = "t"
+            call_command("requeue_stuck", stdout=out)
+        # Both stuck records were handed back to the broker.
+        self.assertEqual(delay.call_count, 2)
+        self.assertIn("Requeued 2/2", out.getvalue())
+
+    def test_requeue_stuck_marks_failed_when_broker_still_down(self):
+        self._record("a.png")
+        out = StringIO()
+        with patch(
+            "inspection.tasks.process_single_inspection.delay",
+            side_effect=OSError("Connection refused"),
+        ):
+            call_command("requeue_stuck", stdout=out)
+        self.assertIn("Requeued 0/1", out.getvalue())
+        self.assertEqual(
+            InspectionRecord.objects.filter(
+                status=InspectionRecord.Status.FAILED
+            ).count(),
+            1,
+        )
+
+    def test_requeue_stuck_is_noop_when_nothing_queued(self):
+        out = StringIO()
+        call_command("requeue_stuck", stdout=out)
+        self.assertIn("No queued records", out.getvalue())

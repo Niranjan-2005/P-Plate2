@@ -149,6 +149,9 @@ code{background:var(--gray-soft);padding:1px 6px;border-radius:6px;font-size:12p
 .table tbody tr:hover{background:var(--line-2)}
 .table-sm td,.table-sm th{padding:7px 8px;font-size:12.5px}
 .truncate{max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.review-cell{display:flex;flex-direction:column;gap:2px;max-width:220px}
+.review-cell .muted{font-size:11px}
+.review-comment{color:var(--text,#111);font-weight:500}
 
 /* Alerts */
 .messages{padding:14px 26px 0;display:flex;flex-direction:column;gap:8px}
@@ -247,8 +250,12 @@ code{background:var(--gray-soft);padding:1px 6px;border-radius:6px;font-size:12p
 .donut-legend strong{margin-left:6px}
 
 /* Auth */
-.auth-body{display:grid;place-items:center;min-height:100vh;background:linear-gradient(135deg,#eef2fb,#f7f9fc)}
-.auth-card{width:360px;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:26px;box-shadow:var(--shadow)}
+.auth-body{display:grid;place-items:center;min-height:100vh;
+  background:linear-gradient(135deg,rgba(15,27,51,.55),rgba(47,111,237,.35)),
+             url("../img/login-bg.png") center/cover no-repeat fixed}
+.auth-card{width:360px;background:rgba(255,255,255,.88);backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.6);
+  border-radius:16px;padding:26px;box-shadow:0 18px 50px rgba(10,20,40,.35)}
 .auth-brand{display:flex;gap:10px;align-items:center;margin-bottom:18px}
 .auth-brand strong{display:block;font-size:16px}
 .auth-brand span{font-size:11px;color:var(--muted)}

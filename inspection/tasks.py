@@ -9,6 +9,29 @@ from .models import InspectionBatch, InspectionRecord
 logger = logging.getLogger("inspection")
 
 
+def enqueue_record(record):
+    """Dispatch one queued record to Celery, failing safe.
+
+    Returns the Celery task id on success. If the broker is unreachable the
+    record is marked ``failed`` with a recovery hint instead of being left in
+    ``queued`` forever (which is what makes a batch look like it never
+    updates). Returns ``None`` on dispatch failure.
+    """
+    try:
+        result = process_single_inspection.delay(record.pk)
+    except Exception as exc:  # broker / connection errors (e.g. Redis down)
+        logger.exception("Could not enqueue record %s", record.pk)
+        record.status = InspectionRecord.Status.FAILED
+        record.failure_reason = (
+            "Task broker was unavailable at submission time. Start Redis and "
+            "the Celery worker, then run 'manage.py requeue_stuck' or re-submit. "
+            f"(dispatch error: {exc})"
+        )
+        record.save(update_fields=["status", "failure_reason", "updated_at"])
+        return None
+    return result.id or ""
+
+
 @shared_task(bind=True, ignore_result=False)
 def process_single_inspection(self, record_id: int) -> dict:
     """

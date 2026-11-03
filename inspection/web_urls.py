@@ -15,6 +15,7 @@ urlpatterns = [
         name="login",
     ),
     path("logout/", auth_views.LogoutView.as_view(), name="logout"),
+    path("signup/", web_views.signup, name="signup"),
     path("", web_views.dashboard, name="dashboard"),
     path("upload/", web_views.upload, name="upload"),
     path("results/", web_views.results_latest, name="results-latest"),

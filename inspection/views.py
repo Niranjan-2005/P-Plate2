@@ -24,7 +24,7 @@ from .serializers import (
     ReviewEventSerializer,
     SupervisorReviewSerializer,
 )
-from .tasks import process_single_inspection
+from .tasks import enqueue_record
 from .utils import validate_batch_size, validate_image_file
 
 
@@ -122,8 +122,11 @@ class BatchUploadView(APIView):
 
         if queued_ids:
             # One Celery task per valid image, as on the challenge flow.
-            results = [process_single_inspection.delay(pk) for pk in queued_ids]
-            batch.celery_task_id = (results[0].id or "")[:64]
+            # Failure-safe dispatch: a broker outage marks the record failed
+            # instead of leaving the batch stuck on "queued".
+            pending = list(InspectionRecord.objects.filter(pk__in=queued_ids))
+            task_ids = [tid for tid in (enqueue_record(r) for r in pending) if tid]
+            batch.celery_task_id = (task_ids[0] if task_ids else "")[:64]
             batch.save(update_fields=["celery_task_id"])
             # Aggregate from record statuses; in eager mode the tasks have
             # already finished, and this never regresses a settled batch.

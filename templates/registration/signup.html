@@ -1,0 +1,41 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign up as Engineer · P-PLATE2T</title>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body class="auth-body">
+  <div class="auth-card">
+    <div class="auth-brand">
+      <div class="brand-mark">P</div>
+      <div>
+        <strong>P-PLATE2T</strong>
+        <span>AI Visual Quality Inspection</span>
+      </div>
+    </div>
+    <h1>Sign up as Engineer</h1>
+    <p class="muted">Create an engineer account to submit inspection images.</p>
+
+    {% if error %}
+      <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="{% url 'web:signup' %}">
+      {% csrf_token %}
+      <label>Username</label>
+      <input type="text" name="username" value="{{ username }}" autofocus autocomplete="username" required>
+      <label>Password</label>
+      <input type="password" name="password" autocomplete="new-password" required>
+      <label>Confirm password</label>
+      <input type="password" name="confirm_password" autocomplete="new-password" required>
+      <button class="btn btn-primary btn-block" type="submit">Create engineer account</button>
+    </form>
+
+    <p class="auth-hint center">Already have an account?
+      <a class="link" href="{% url 'web:login' %}">Sign in</a>
+    </p>
+  </div>
+</body>
+</html>

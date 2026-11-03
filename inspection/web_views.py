@@ -13,6 +13,7 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.contrib import messages
+from django.contrib.auth import get_user_model, login
 from django.contrib.auth.decorators import login_required
 from django.db.models import Avg, Case, CharField, Count, F, Q, When
 from django.db.models.functions import TruncDate
@@ -32,6 +33,10 @@ from .models import (
     record_review,
 )
 from .permissions import get_user_role, is_administrator, is_engineer, is_supervisor
+
+User = get_user_model()
+
+MIN_SIGNUP_PASSWORD = 8
 
 # Final operational label = supervisor override when present, else model output.
 FINAL_LABEL = Case(
@@ -104,16 +109,67 @@ def _visible_nav(flags):
     """
     Nav entries the user's role may actually open.
 
-    Administrators manage products (Django admin) and are deliberately given
-    the same empty inspection scope the API enforces, so oversight pages are
-    supervisor-only in both layers.
+    Administrators have read-only oversight: they may open every batch's
+    history and results, but review and the audit log stay supervisor-only.
     """
     allowed = {"dashboard", "settings"}
     if flags["is_engineer"]:
         allowed |= {"upload", "history", "results"}
     if flags["is_supervisor"]:
         allowed |= {"history", "results", "review", "audit"}
+    if flags["is_admin"]:
+        # Read-only oversight: admins may open every batch's history and
+        # results, but never review predictions or read the review audit log.
+        allowed |= {"history", "results"}
     return allowed
+
+
+# Self-service signup only ever grants the lowest-privilege inspection role.
+# Supervisor/administrator accounts stay provisioned by an administrator.
+SIGNUP_ROLE = UserProfile.Role.ENGINEER
+
+
+def signup(request):
+    """Create an engineer account and sign it in immediately.
+
+    The new user gets a UserProfile with the engineer role, so the very same
+    credentials work on the normal login form next time.
+    """
+    if request.user.is_authenticated:
+        return redirect("web:dashboard")
+
+    error = None
+    username = ""
+    if request.method == "POST":
+        username = (request.POST.get("username") or "").strip()
+        password = request.POST.get("password") or ""
+        confirm = request.POST.get("confirm_password") or ""
+
+        if not username or not password:
+            error = "Username and password are both required."
+        elif len(username) > 150:
+            error = "Username is too long."
+        elif len(password) < MIN_SIGNUP_PASSWORD:
+            error = f"Password must be at least {MIN_SIGNUP_PASSWORD} characters."
+        elif password != confirm:
+            error = "The two passwords do not match."
+        elif User.objects.filter(username__iexact=username).exists():
+            error = "That username is already taken."
+        else:
+            user = User.objects.create_user(username=username, password=password)
+            UserProfile.objects.create(user=user, role=SIGNUP_ROLE)
+            login(request, user)
+            messages.success(
+                request,
+                "Engineer account created. You can now submit inspection images.",
+            )
+            return redirect("web:dashboard")
+
+    return render(
+        request,
+        "registration/signup.html",
+        {"error": error, "username": username, "today": timezone.localdate()},
+    )
 
 
 @login_required
@@ -191,14 +247,14 @@ def dashboard(request):
 
 
 def _record_scope(user, flags):
-    """Supervisors see everything, engineers their own uploads, administrators none."""
+    """Supervisors and administrators see everything; engineers only their own."""
     qs = (
         InspectionRecord.objects.select_related(
             "batch__product", "submitted_by", "reviewer"
         )
         .prefetch_related("review_events__reviewer")
     )
-    if flags["is_supervisor"]:
+    if flags["is_supervisor"] or flags["is_admin"]:
         return qs
     if flags["is_engineer"]:
         return qs.filter(submitted_by=user)
@@ -210,7 +266,7 @@ def _batch_scope(user, flags):
         InspectionBatch.objects.select_related("product", "submitted_by")
         .prefetch_related("records__review_events__reviewer")
     )
-    if flags["is_supervisor"]:
+    if flags["is_supervisor"] or flags["is_admin"]:
         return qs
     if flags["is_engineer"]:
         return qs.filter(submitted_by=user)
@@ -218,15 +274,15 @@ def _batch_scope(user, flags):
 
 
 def _may_view_inspection_data(flags):
-    return bool(flags["is_engineer"] or flags["is_supervisor"])
+    return bool(flags["is_engineer"] or flags["is_supervisor"] or flags["is_admin"])
 
 
 SCOPE_NOTES = {
     UserProfile.Role.ENGINEER: "Metrics cover your own submissions only.",
     UserProfile.Role.SUPERVISOR: "Metrics cover every inspection in the plant.",
     UserProfile.Role.ADMINISTRATOR: (
-        "Administrators manage products in Django admin; inspection data is "
-        "scoped to engineers and supervisors."
+        "Administrators have read-only oversight of every batch and result; "
+        "predictions are reviewed by supervisors."
     ),
 }
 
@@ -286,16 +342,18 @@ def upload(request):
             queued += 1
 
         if queued:
-            from .tasks import process_single_inspection
+            from .tasks import enqueue_record
 
             # One Celery task per valid image, matching the challenge flow.
-            results = [
-                process_single_inspection.delay(record_pk)
-                for record_pk in InspectionRecord.objects.filter(
+            # Dispatch is failure-safe: if the broker is down the record is
+            # marked failed here instead of hanging in "queued" forever.
+            pending = list(
+                InspectionRecord.objects.filter(
                     batch=batch, status=InspectionRecord.Status.QUEUED
-                ).values_list("id", flat=True)
-            ]
-            batch.celery_task_id = (results[0].id or "")[:64]
+                )
+            )
+            task_ids = [tid for tid in (enqueue_record(r) for r in pending) if tid]
+            batch.celery_task_id = (task_ids[0] if task_ids else "")[:64]
             batch.save(update_fields=["celery_task_id"])
             # Aggregate from record statuses so eager-mode runs (and rejected
             # -only batches) never leave the batch stuck on "queued".
@@ -339,7 +397,7 @@ def results(request, pk):
         )
         return redirect("web:history")
 
-    records = list(batch.records.all())
+    records = list(batch.records.select_related("reviewer").all())
     counts = {
         "total": len(records),
         "completed": sum(r.status == InspectionRecord.Status.COMPLETED for r in records),
@@ -393,8 +451,8 @@ def history(request):
     if not _may_view_inspection_data(flags):
         messages.error(
             request,
-            "Administrators manage products; inspection history belongs to "
-            "engineers and supervisors.",
+            "Inspection history belongs to engineers, supervisors and "
+            "administrators; your account has no inspection role.",
         )
         return redirect("web:settings")
     scope = _record_scope(request.user, flags)

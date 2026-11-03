@@ -56,12 +56,51 @@ if errorlevel 1 (
     %PY% manage.py seed_demo
 )
 
-REM ---- Redis check (non-fatal: warn and continue) ----
+REM ---- Redis check: auto-start the Docker container when possible ----
 %PY% -c "import socket;s=socket.create_connection(('127.0.0.1',6379),2);s.close()" >nul 2>&1
+if not errorlevel 1 goto :redis_ok
+
+echo [REDIS] Not reachable on 127.0.0.1:6379 - trying to start it via Docker...
+docker info >nul 2>&1
 if errorlevel 1 (
-    echo [WARN] Redis is NOT reachable on 127.0.0.1:6379.
-    echo [WARN] Start Redis before uploading images, otherwise Celery tasks stay queued.
+    echo [WARN] Docker is not running. Start Docker Desktop, then run:
+    echo [WARN]   docker run -d --name vqi-redis -p 6379:6379 --restart unless-stopped redis:7-alpine
+    echo [WARN] Continuing anyway - Celery tasks stay queued until Redis is up.
+    goto :redis_skip
 )
+
+REM Container already running?
+docker ps -q -f name=vqi-redis | findstr /r "." >nul 2>&1
+if not errorlevel 1 goto :redis_wait
+
+REM Container exists but is stopped -> start it.
+docker ps -aq -f name=vqi-redis | findstr /r "." >nul 2>&1
+if not errorlevel 1 (
+    docker start vqi-redis >nul 2>&1
+    goto :redis_wait
+)
+
+REM No container at all -> create it (pulls the image the first time).
+docker run -d --name vqi-redis -p 6379:6379 --restart unless-stopped redis:7-alpine >nul 2>&1
+
+:redis_wait
+set /a REDIS_TRIES=0
+:redis_poll
+%PY% -c "import socket;s=socket.create_connection(('127.0.0.1',6379),2);s.close()" >nul 2>&1
+if not errorlevel 1 goto :redis_ok
+set /a REDIS_TRIES+=1
+if %REDIS_TRIES% geq 30 goto :redis_timeout
+timeout /t 1 /nobreak >nul
+goto :redis_poll
+
+:redis_timeout
+echo [WARN] Redis still not reachable after 30s. Celery tasks stay queued until it is up.
+goto :redis_skip
+
+:redis_ok
+echo [REDIS] Redis is reachable on 127.0.0.1:6379.
+
+:redis_skip
 
 REM ---- Celery worker in its own window (--pool=solo is the Windows-safe pool) ----
 REM /D sets the working directory, so no nested quotes around the path are needed.

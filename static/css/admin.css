@@ -1,0 +1,166 @@
+/* ============================================================================
+   P-PLATE2T · Django admin theme
+   Loaded via templates/admin/base_site.html on every admin page.
+   Strategy: override Django's own CSS custom properties (stable across 5.x
+   and gracefully ignored on older versions) to recolor header / buttons /
+   links, then add layout polish so the console matches the plant workspace.
+   ========================================================================== */
+:root {
+  /* Brand palette (mirrors static/css/app.css) */
+  --pbg:#f4f6fa; --ppanel:#ffffff; --pink:#1c2430; --pmuted:#6b7688;
+  --pline:#e6e9f0; --pline2:#eef1f6;
+  --pbrand:#2f6fed; --pbrand-ink:#1b52c4; --pbrand-soft:#eaf1ff;
+  --pgreen:#16a34a; --pred:#e5484d; --pamber:#d98324;
+
+  /* Django admin semantic variables */
+  --primary:var(--pbrand);
+  --secondary:var(--pbrand-ink);
+  --accent:var(--pbrand);
+  --header-bg:#1b52c4;
+  --header-color:#ffffff;
+  --header-link-color:#ffffff;
+  --header-branding-color:#ffffff;
+  --breadcrumbs-bg:var(--ppanel);
+  --breadcrumbs-fg:var(--pmuted);
+  --breadcrumbs-link-fg:var(--pbrand);
+  --body-bg:var(--pbg);
+  --body-fg:var(--pink);
+  --body-quiet-color:var(--pmuted);
+  --content-bg:var(--pbg);
+  --link-fg:var(--pbrand);
+  --link-selected-fg:var(--pbrand-ink);
+  --hairline-color:var(--pline);
+  --border-color:var(--pline);
+  --error-color:var(--pred);
+  --success-color:var(--pgreen);
+  --button-fg:#ffffff;
+  --button-bg:var(--pbrand);
+  --button-hover-bg:var(--pbrand-ink);
+  --default-button-bg:var(--pbrand-ink);
+  --default-button-hover-bg:#153f93;
+  --input-bg:var(--ppanel);
+  --input-fg:var(--pink);
+  --nav-sidebar-link-active-bg:var(--pbrand-soft);
+}
+
+/* Base body font to match the workspace */
+body{font-family:"Inter","Segoe UI",system-ui,-apple-system,Arial,sans-serif;}
+
+/* Header / branding with a P monogram like the app sidebar.
+   Solid background colour first (so --header-bg never renders blank and
+   hide the white text), then the gradient only as a background-image layer. */
+#header,header#header{
+  padding:12px 24px;border-bottom:0;
+  background-color:#1b52c4;
+  background-image:linear-gradient(90deg,#1b52c4,#2f6fed);
+  color:#fff;
+}
+#header a,#header a:link,#header a:visited{color:#fff;}
+#branding h1,#branding h1 a:link,#branding h1 a:visited,
+.header__branding,.header__brand a{
+  color:#fff;font-weight:700;letter-spacing:.2px;
+}
+#branding h1::before,.header__brand a::before{
+  content:"P";display:inline-grid;place-items:center;
+  width:30px;height:30px;margin-right:10px;border-radius:9px;
+  background:rgba(255,255,255,.18);color:#fff;font-weight:800;
+  vertical-align:middle;
+}
+#user-tools{color:#eaf1ff;}
+#user-tools a{color:#fff;text-decoration:none;border-bottom:1px solid transparent;}
+#user-tools a:hover{border-bottom-color:#fff;}
+
+/* Left model navigation */
+#nav-sidebar,.nav-sidebar{background:var(--ppanel);border-right:1px solid var(--pline);}
+#nav-sidebar a,.nav-sidebar a{color:var(--pink);border-radius:8px;padding:8px 12px;}
+#nav-sidebar a:hover,.nav-sidebar a:hover{background:var(--pbrand-soft);color:var(--pbrand-ink);}
+#nav-sidebar a.current,.nav-sidebar a.current{background:var(--pbrand-soft);color:var(--pbrand-ink);font-weight:600;}
+
+/* Breadcrumbs */
+#breadcrumbs,.breadcrumbs{
+  background:var(--ppanel);color:var(--pmuted);border:1px solid var(--pline);
+  border-radius:0 0 12px 12px;padding:9px 16px;margin:0;
+}
+
+/* Content cards: modules, fieldsets, dashboard app groups */
+.module,.dashboard .module,#content .module{
+  background:var(--ppanel);border:1px solid var(--pline);
+  border-radius:14px;box-shadow:0 1px 2px rgba(20,30,50,.04),0 6px 20px rgba(20,30,50,.05);
+  overflow:hidden;margin-bottom:20px;
+}
+/* Module / section headers: solid brand bar with white text so the title is
+   always high-contrast (fixes near-white text on the white card). */
+.module h2,.module caption,.inline-group h2,
+.dashboard .app-module caption,.dashboard .app-model h2,
+a.section:link,a.section:visited{
+  background:var(--pbrand-ink);color:#ffffff;font-weight:600;font-size:13px;
+  padding:12px 16px;border-bottom:1px solid var(--pline2);
+}
+.dashboard .app-model .model-list a,.dashboard .app-list a{color:var(--pbrand);}
+
+/* Result tables */
+#changelist table,.results table,table{border-collapse:separate;border-spacing:0;width:100%;}
+#changelist table thead th,.results thead th{
+  background:var(--pbrand-soft);color:var(--pbrand-ink);font-weight:600;
+  padding:10px 12px;border-bottom:1px solid var(--pline);
+}
+#changelist table tbody td,.results tbody td{padding:9px 12px;border-bottom:1px solid var(--pline2);}
+#changelist table tbody tr:hover td,.results tbody tr:hover td{background:#f7faff;}
+.row1,.row2{background:var(--ppanel);}
+
+/* Sidebar filters + search */
+#changelist-filter,.changelist-filter{background:var(--ppanel);border:1px solid var(--pline);border-radius:12px;}
+#changelist-filter h2,#changelist-filter h3{background:transparent;color:var(--pink);}
+#changelist .search-toggle,#changelist form.search input[type=search],
+#toolbar input[type=search]{
+  border:1px solid var(--pline);border-radius:10px;padding:8px 12px;background:#fff;
+}
+
+/* Buttons & submit rows */
+input[type=submit],.button,.btn,a.button{
+  border-radius:10px;padding:8px 16px;font-weight:600;
+  box-shadow:0 1px 2px rgba(20,30,50,.06);border:0;
+}
+.deletelink,.deletelink-box a,.button.deletelink{background:var(--pred);}
+.object-tools a{border-radius:10px;background:var(--pbrand);color:#fff;padding:7px 14px;}
+.object-tools a:before{filter:brightness(2);}
+
+/* Forms */
+.form-row input,.form-row select,.form-row textarea,.aligned input,.aligned textarea,.aligned select{
+  border:1px solid var(--pline);border-radius:9px;padding:7px 10px;background:#fff;
+}
+fieldset .field-box label,form .aligned label{color:var(--pink);font-weight:600;}
+h1#content-title,.base-title,.login h1{color:var(--pink);}
+
+/* Messages banner */
+.messagelist li{border-radius:10px;padding:10px 14px;}
+.messagelist .success{background:#e7f6ec;color:#12693c;}
+.messagelist .error,.messagelist .warning{background:#fdecec;color:#9c2b2e;}
+
+/* Pagination */
+.paginator,.pagination{color:var(--pmuted);}
+.paginator a,.pagination a{color:var(--pbrand);}
+
+/* Status / result badges injected by admin.py (see _badge) */
+.adm-badge{
+  display:inline-block;padding:2px 10px;border-radius:999px;
+  font-size:11.5px;font-weight:600;line-height:1.6;letter-spacing:.2px;
+  background:var(--pline2);color:var(--pmuted);white-space:nowrap;
+}
+.adm-badge--green{background:#e7f6ec;color:#12693c;}
+.adm-badge--red{background:#fdecec;color:#9c2b2e;}
+.adm-badge--amber{background:#fbf1e2;color:#8a5215;}
+.adm-badge--blue{background:#e9f0ff;color:#1b52c4;}
+
+/* Login card */
+#login,.login{max-width:460px;margin:60px auto;padding:0;}
+#login .login-form,#login div.container,.login-form{
+  background:var(--ppanel);border:1px solid var(--pline);border-radius:16px;
+  padding:26px 28px;box-shadow:0 6px 20px rgba(20,30,50,.08);
+}
+#login .login-form h1,.login-form h1{color:var(--pink);font-size:20px;}
+
+/* Small screens: keep content from hiding behind the sidebar */
+@media (max-width:1024px){
+  #nav-sidebar,.nav-sidebar{display:none;}
+}

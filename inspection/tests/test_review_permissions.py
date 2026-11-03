@@ -16,6 +16,7 @@ from inspection.models import (
     Product,
     ReviewEvent,
     UserProfile,
+    record_review,
 )
 
 User = get_user_model()
@@ -111,7 +112,7 @@ class UploadValidationTests(TestCase):
         self.client.credentials(HTTP_AUTHORIZATION=f"Token {self.token.key}")
         self.url = reverse("batch-upload")
 
-    @patch("inspection.views.process_single_inspection.delay")
+    @patch("inspection.tasks.process_single_inspection.delay")
     def test_mixed_batch_keeps_valid_items_and_logs_failures(self, delay_mock):
         delay_mock.return_value.id = "test-task-id"
         valid = SimpleUploadedFile("ok.png", _png(), content_type="image/png")
@@ -279,21 +280,29 @@ class WebRoleScopeTests(TestCase):
         )
         self.client = Client()
 
-    def test_administrator_is_scoped_out_of_inspection_pages(self):
+    def test_administrator_is_scoped_out_of_review_and_audit(self):
+        # Admins get read-only oversight of batches, but never review or audit.
         self.client.force_login(self.admin)
-        for name in ("web:history", "web:audit"):
-            response = self.client.get(reverse(name))
-            self.assertEqual(response.status_code, 302, name)
-            self.assertNotIn("/review/", response["Location"])
+        response = self.client.get(reverse("web:audit"))
+        self.assertEqual(response.status_code, 302, "web:audit")
+        self.assertNotIn("/review/", response["Location"])
 
         response = self.client.get(reverse("web:review"))
         self.assertEqual(response["Location"], reverse("web:dashboard"))
 
-    def test_administrator_dashboard_reports_product_only_scope(self):
+    def test_administrator_dashboard_shows_every_batch(self):
         self.client.force_login(self.admin)
         response = self.client.get(reverse("web:dashboard"))
-        self.assertContains(response, "Administrators manage products")
-        self.assertEqual(response.context["total_completed"], 0)
+        self.assertContains(response, "read-only oversight")
+        self.assertEqual(response.context["total_completed"], 1)
+        self.assertEqual(len(response.context["recent_batches"]), 1)
+
+    def test_administrator_can_view_history_and_results(self):
+        self.client.force_login(self.admin)
+        history = self.client.get(reverse("web:history"))
+        self.assertEqual(history.status_code, 200)
+        results = self.client.get(reverse("web:results", args=[self.batch.pk]))
+        self.assertEqual(results.status_code, 200)
 
     def test_engineer_cannot_review_through_the_web_form(self):
         self.client.force_login(self.engineer)
@@ -368,6 +377,22 @@ class WebRoleScopeTests(TestCase):
         self.assertEqual(created.records.count(), 1)
         self.assertEqual(created.records.first().status, InspectionRecord.Status.FAILED)
         self.assertEqual(created.status, InspectionBatch.Status.FAILED)
+
+    def test_engineer_sees_supervisor_comment_on_results(self):
+        """An engineer opening their own batch must see the review comment."""
+        record_review(
+            record=self.record,
+            reviewer=self.supervisor,
+            reviewed_class=InspectionRecord.Label.DEFECTIVE,
+            comment="scratch on left edge",
+            source=ReviewEvent.Source.WEB,
+        )
+        self.client.force_login(self.engineer)
+        response = self.client.get(reverse("web:results", args=[self.batch.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "scratch on left edge")
+        # The reviewer who left the feedback is attributed too.
+        self.assertContains(response, "web-sup")
 
 
 class ProductAndAdminConsoleTests(TestCase):
